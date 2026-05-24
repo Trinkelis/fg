@@ -6,6 +6,7 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM node:20-alpine
+RUN apk add --no-cache ffmpeg imagemagick
 WORKDIR /app
 COPY backend/package*.json ./backend/
 RUN cd backend && npm install --omit=dev

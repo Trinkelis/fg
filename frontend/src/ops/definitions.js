@@ -244,7 +244,130 @@ export const OPERATIONS = [
       { id:'duration', label:'Duration', type:'slider', min:1, max:120, step:0.5, unit:'s' },
       { id:'fps',      label:'FPS',      type:'slider', min:1, max:60,  step:1           },
     ]},
+  
+  // ── IMAGEMAGICK EFFECTS (image category, server-side) ────────
+  { id:'im_charcoal', label:'Charcoal Sketch', category:'image', applies:['image'],
+    defaultParams:{ factor:2 },
+    controls:[{ id:'factor', label:'Factor', type:'slider', min:0.5, max:5, step:0.1 }] },
 
+  { id:'im_oilpaint', label:'Oil Paint', category:'image', applies:['image'],
+    defaultParams:{ radius:3 },
+    controls:[{ id:'radius', label:'Brush radius', type:'slider', min:1, max:10, step:1 }] },
+
+  { id:'im_sketch', label:'Pencil Sketch', category:'image', applies:['image'],
+    defaultParams:{ sigma:5, angle:45 },
+    controls:[
+      { id:'sigma', label:'Blur sigma', type:'slider', min:1,   max:30,  step:0.5       },
+      { id:'angle', label:'Angle',      type:'slider', min:0,   max:360, step:1, unit:'°' },
+    ]},
+
+  { id:'im_emboss', label:'Emboss', category:'image', applies:['image'],
+    defaultParams:{ radius:3 },
+    controls:[{ id:'radius', label:'Radius', type:'slider', min:1, max:15, step:1 }] },
+
+  { id:'im_swirl', label:'Swirl', category:'image', applies:['image'],
+    defaultParams:{ degrees:90 },
+    controls:[{ id:'degrees', label:'Swirl degrees', type:'slider', min:-360, max:360, step:1, unit:'°' }] },
+
+  { id:'im_wave', label:'Wave Distortion', category:'image', applies:['image'],
+    defaultParams:{ amplitude:10, wavelength:100 },
+    controls:[
+      { id:'amplitude',  label:'Amplitude',  type:'slider', min:1,  max:80,  step:1, unit:'px' },
+      { id:'wavelength', label:'Wavelength', type:'slider', min:10, max:500, step:5, unit:'px' },
+    ]},
+
+  { id:'im_implode', label:'Implode / Explode', category:'image', applies:['image'],
+    defaultParams:{ factor:0.5 },
+    controls:[{ id:'factor', label:'Factor (negative = explode)', type:'slider', min:-2, max:2, step:0.05 }] },
+
+  { id:'im_solarize', label:'Solarize', category:'image', applies:['image'],
+    defaultParams:{ threshold:50 },
+    controls:[{ id:'threshold', label:'Threshold', type:'slider', min:1, max:99, step:1, unit:'%' }] },
+
+  { id:'im_spread', label:'Spread / Diffuse', category:'image', applies:['image'],
+    defaultParams:{ amount:5 },
+    controls:[{ id:'amount', label:'Amount', type:'slider', min:1, max:30, step:1 }] },
+
+  { id:'im_pixelate', label:'Pixelate', category:'image', applies:['image'],
+    defaultParams:{ size:10 },
+    controls:[{ id:'size', label:'Pixel size', type:'slider', min:2, max:50, step:1 }] },
+
+  { id:'im_negate', label:'Invert Colors', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_normalize', label:'Normalize', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_equalize', label:'Equalize Histogram', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_autolevel', label:'Auto Level', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_autogamma', label:'Auto Gamma', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_threshold', label:'Threshold (B&W)', category:'image', applies:['image'],
+    defaultParams:{ value:50 },
+    controls:[{ id:'value', label:'Threshold', type:'slider', min:1, max:99, step:1, unit:'%' }] },
+
+  { id:'im_posterize', label:'Posterize', category:'image', applies:['image'],
+    defaultParams:{ levels:4 },
+    controls:[{ id:'levels', label:'Color levels', type:'slider', min:2, max:16, step:1 }] },
+
+  { id:'im_border', label:'Add Border', category:'image', applies:['image'],
+    defaultParams:{ width:10, color:'black' },
+    controls:[
+      { id:'width', label:'Width', type:'slider', min:1, max:200, step:1, unit:'px' },
+      { id:'color', label:'Color', type:'color' },
+    ]},
+
+  { id:'im_tint', label:'Color Tint', category:'image', applies:['image'],
+    defaultParams:{ color:'#0000ff', amount:50 },
+    controls:[
+      { id:'color',  label:'Tint color', type:'color' },
+      { id:'amount', label:'Amount',     type:'slider', min:1, max:100, step:1, unit:'%' },
+    ]},
+
+  { id:'im_colorize', label:'Colorize', category:'image', applies:['image'],
+    defaultParams:{ color:'#ff0000', amount:30 },
+    controls:[
+      { id:'color',  label:'Color',   type:'color' },
+      { id:'amount', label:'Blend %', type:'slider', min:1, max:100, step:1, unit:'%' },
+    ]},
+
+  { id:'im_addnoise', label:'Add Noise', category:'image', applies:['image'],
+    defaultParams:{ type:'Gaussian' },
+    controls:[
+      { id:'type', label:'Noise type', type:'select', options:[
+        { value:'Gaussian',  label:'Gaussian'               },
+        { value:'Impulse',   label:'Impulse (Salt & Pepper)' },
+        { value:'Laplacian', label:'Laplacian'               },
+        { value:'Poisson',   label:'Poisson'                 },
+        { value:'Random',    label:'Random'                  },
+      ]},
+    ]},
+
+  { id:'im_despeckle', label:'Despeckle (Reduce Noise)', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_clahe', label:'CLAHE (Local Contrast Enhance)', category:'image', applies:['image'],
+    defaultParams:{ size:64, limit:3 },
+    controls:[
+      { id:'size',  label:'Tile size',     type:'slider', min:16, max:128, step:8 },
+      { id:'limit', label:'Clip limit',    type:'slider', min:1,  max:10,  step:0.5 },
+    ]},
+
+  { id:'im_strip', label:'Strip Metadata (EXIF)', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+
+  { id:'im_trim_auto', label:'Auto Trim Whitespace', category:'image', applies:['image'],
+    defaultParams:{ fuzz:10 },
+    controls:[{ id:'fuzz', label:'Color fuzz', type:'slider', min:0, max:50, step:1, unit:'%' }] },
+
+  { id:'im_deskew', label:'Auto Deskew (straighten)', category:'image', applies:['image'],
+    defaultParams:{}, controls:[] },
+    
   // ── FILTERS ────────────────────────────────────────────────────
   { id:'colorCorrect', label:'Color Correction', category:'filters', applies:['video','image'],
     defaultParams:{ brightness:0, contrast:1, saturation:1, gamma:1 },

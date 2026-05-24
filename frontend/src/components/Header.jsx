@@ -1,11 +1,67 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import useStore from '../store/useStore.js';
 
-export default function Header() {
-  const { media, loadMedia } = useStore();
-  const ref = useRef();
+const PRESETS = [
+  { label: 'Compress video for web', ops: {
+    videoCodec: { enabled:true, params:{ codec:'libx264', crf:28, preset:'fast' } },
+    pixfmt:     { enabled:true, params:{ format:'yuv420p' } },
+    container:  { enabled:true, params:{ format:'mp4'    } },
+  }},
+  { label: 'Extract audio as MP3', ops: {
+    extractAudio: { enabled:true, params:{ format:'mp3' } },
+    audioCodec:   { enabled:true, params:{ codec:'libmp3lame', bitrate:'192k' } },
+  }},
+  { label: 'Podcast master', ops: {
+    normalize:  { enabled:true, params:{ I:-16, LRA:11, TP:-1.5 } },
+    compressor: { enabled:true, params:{ threshold:-20, ratio:3, attack:5, release:50 } },
+  }},
+  { label: 'GIF from video (480px)', ops: {
+    gifExport: { enabled:true, params:{ fps:15, width:480 } },
+  }},
+  { label: 'Remove audio track', ops: {
+    removeAudio: { enabled:true, params:{} },
+  }},
+  { label: 'Speed 2×', ops: {
+    speed: { enabled:true, params:{ factor:2 } },
+  }},
+  { label: 'Grayscale', ops: {
+    grayscale: { enabled:true, params:{} },
+  }},
+  { label: 'Optimize image for web', ops: {
+    scale:      { enabled:true, params:{ width:1920, height:1080, keepAspect:true } },
+    imgFormat:  { enabled:true, params:{ format:'webp' } },
+    imgQuality: { enabled:true, params:{ quality:82 } },
+    im_strip:   { enabled:true, params:{} },
+  }},
+  { label: 'Loudness normalize (broadcast)', ops: {
+    normalize: { enabled:true, params:{ I:-23, LRA:7, TP:-2 } },
+  }},
+  { label: 'FLAC lossless encode', ops: {
+    audioCodec: { enabled:true, params:{ codec:'flac', flacLevel:8 } },
+    container:  { enabled:true, params:{ format:'flac' } },
+  }},
+];
 
-  const pick = f => f && loadMedia(f);
+export default function Header() {
+  const { media, loadMedia, operations } = useStore();
+  const fileRef    = useRef();
+  const [showPre,  setShowPre]  = useState(false);
+
+  function applyPreset(preset) {
+    // Merge preset ops into store directly
+    const store = useStore.getState();
+    for (const [id, op] of Object.entries(preset.ops)) {
+      store.enableOperation(id, op.params);
+      // force-enable
+      useStore.setState(s => ({
+        operations: {
+          ...s.operations,
+          [id]: { ...op },
+        },
+      }));
+    }
+    setShowPre(false);
+  }
 
   return (
     <header className="hdr">
@@ -16,7 +72,7 @@ export default function Header() {
         fg · FFmpeg GUI
       </div>
 
-      <div className="hdr-file" onClick={() => ref.current.click()}>
+      <div className="hdr-file" onClick={() => fileRef.current.click()}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
@@ -28,15 +84,36 @@ export default function Header() {
           </span>
         )}
       </div>
+      <input ref={fileRef} type="file" accept="video/*,audio/*,image/*"
+        style={{ display:'none' }} onChange={e => e.target.files[0] && loadMedia(e.target.files[0])} />
 
-      <input ref={ref} type="file" accept="video/*,audio/*,image/*"
-        style={{ display:'none' }} onChange={e => pick(e.target.files[0])} />
+      {/* Presets */}
+      <div style={{ position:'relative' }}>
+        <button className="hdr-preset-btn" onClick={() => setShowPre(p => !p)}>
+          ⚡ Presets
+        </button>
+        {showPre && (
+          <>
+            <div className="preset-backdrop" onClick={() => setShowPre(false)} />
+            <div className="preset-menu">
+              <div className="preset-title">Quick Presets</div>
+              {PRESETS.map(p => (
+                <button key={p.label} className="preset-item" onClick={() => applyPreset(p)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="hsp" />
 
-      <div style={{ fontSize:11, color:'var(--dim)', whiteSpace:'nowrap' }}>
-        🔒 All processing runs in your browser
-      </div>
+      <span className="hdr-privacy">All processes run in your browser</span>
+
+      <a href="https://tools.mwlmedia.org" target="_blank" rel="noreferrer" className="hdr-tools">
+        tools.mwlmedia.org ↗
+      </a>
     </header>
   );
 }

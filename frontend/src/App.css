@@ -289,3 +289,73 @@ body {
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--b2); border-radius:3px; }
 ::-webkit-scrollbar-thumb:hover { background:var(--dim); }
+
+/* ── Header extras ── */
+.hdr-privacy { font-size:11px; color:var(--dim); white-space:nowrap; }
+.hdr-tools {
+  font-size:11px; color:var(--accent); text-decoration:none;
+  white-space:nowrap; border-bottom:1px solid transparent; transition:border-color .15s;
+  font-weight:500;
+}
+.hdr-tools:hover { border-bottom-color:var(--accent); }
+
+.hdr-preset-btn {
+  padding:5px 11px; border:1px solid var(--b2); border-radius:var(--r);
+  background:var(--s2); color:var(--muted); cursor:pointer; font-size:11px;
+  font-weight:600; transition:all .12s; white-space:nowrap;
+}
+.hdr-preset-btn:hover { border-color:var(--accent); color:var(--text); }
+
+.preset-backdrop {
+  position:fixed; inset:0; z-index:40;
+}
+.preset-menu {
+  position:absolute; top:calc(100% + 6px); left:0; z-index:50;
+  background:var(--s2); border:1px solid var(--b2); border-radius:var(--r);
+  min-width:230px; box-shadow:0 8px 24px rgba(0,0,0,.4); overflow:hidden;
+}
+.preset-title {
+  padding:8px 12px; font-size:10px; font-weight:700; color:var(--dim);
+  text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--b1);
+}
+.preset-item {
+  display:block; width:100%; padding:8px 12px; border:none; background:transparent;
+  color:var(--text); cursor:pointer; font-size:12px; text-align:left; transition:background .1s;
+}
+.preset-item:hover { background:var(--s3); }
+
+/* ── Video CTA banner ── */
+.vid-cta {
+  display:flex; align-items:center; gap:10px; padding:8px 14px;
+  background:rgba(59,130,246,.08); border-top:1px solid rgba(59,130,246,.2);
+  font-size:12px; color:var(--muted); flex-shrink:0;
+}
+.vid-cta svg { flex-shrink:0; color:var(--accent); }
+.vid-cta span { flex:1; line-height:1.4; }
+.vid-cta-copy {
+  padding:4px 12px; border:1px solid var(--accent); border-radius:var(--rs);
+  background:transparent; color:var(--accent); cursor:pointer; font-size:11px;
+  font-weight:600; white-space:nowrap; transition:all .15s; flex-shrink:0;
+}
+.vid-cta-copy:hover { background:var(--accent); color:#fff; }
+.vid-cta-copy.ok { background:var(--ok); border-color:var(--ok); color:#fff; }
+
+/* ── Image render button ── */
+.pb.img-render { background:var(--violet); }
+.pb.img-render:hover { filter:brightness(1.15); }
+
+/* ── Waveform ── */
+.waveform-wrap {
+  position:relative; width:100%; max-width:700px; margin-top:8px;
+}
+.waveform-trim {
+  position:absolute; top:0; bottom:0;
+  background:rgba(59,130,246,.2);
+  border-left:1px solid var(--accent); border-right:1px solid var(--accent);
+  pointer-events:none;
+}
+.waveform-ph {
+  position:absolute; top:0; bottom:0; width:2px;
+  background:rgba(255,255,255,.75); border-radius:1px;
+  pointer-events:none; transform:translateX(-50%);
+}
