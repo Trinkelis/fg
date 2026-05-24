@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  fg-ffmpeg:
+    build: .
+    container_name: fg-ffmpeg
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7878:3000"
+volumes: {}
