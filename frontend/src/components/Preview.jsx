@@ -13,11 +13,12 @@ export default function Preview() {
   const { media, mediaType, operations, isProcessing, output } = store;
 
   const videoRef  = useRef();
+  const audioRef  = useRef();
   const wrapRef   = useRef();
   const fileRef   = useRef();
   const [isDrag,    setIsDrag]    = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [mediaSize, setMediaSize] = useState({ w: 0, h: 0 });
+  const [mediaSize, setMediaSize] = useState({ w:0, h:0 });
   const [copiedCTA, setCopiedCTA] = useState(false);
 
   const hasCrop = operations.crop?.enabled;
@@ -27,10 +28,10 @@ export default function Preview() {
 
   const computeSize = useCallback((natW, natH) => {
     const wrap = wrapRef.current;
-    if (!wrap || !natW || !natH) return;
-    const { width: cw, height: ch } = wrap.getBoundingClientRect();
-    const scale = Math.min((cw - 24) / natW, (ch - 24) / natH);
-    setMediaSize({ w: Math.round(natW * scale), h: Math.round(natH * scale) });
+    if (!wrap||!natW||!natH) return;
+    const { width:cw, height:ch } = wrap.getBoundingClientRect();
+    const scale = Math.min((cw-24)/natW, (ch-24)/natH);
+    setMediaSize({ w:Math.round(natW*scale), h:Math.round(natH*scale) });
   }, []);
 
   useEffect(() => {
@@ -44,81 +45,79 @@ export default function Preview() {
   }, [media, computeSize]);
 
   function onVideoMeta(e) {
-    const { videoWidth: w, videoHeight: h, duration: d } = e.target;
+    const { videoWidth:w, videoHeight:h, duration:d } = e.target;
     store.setMediaDims(w, h);
     store.setDuration(d);
     computeSize(w, h);
   }
+
   function onImgLoad(e) {
-    const { naturalWidth: w, naturalHeight: h } = e.target;
+    const { naturalWidth:w, naturalHeight:h } = e.target;
     store.setMediaDims(w, h);
     computeSize(w, h);
   }
+
   function loadFile(file) { if (file) store.loadMedia(file); }
 
   function onDrop(e) {
     e.preventDefault(); setIsDrag(false);
     loadFile(e.dataTransfer.files[0]);
   }
+
   function togglePlay() {
-    const v = videoRef.current;
-    if (!v) return;
-    isPlaying ? v.pause() : v.play();
+    const el = videoRef.current || audioRef.current;
+    if (!el) return;
+    isPlaying ? el.pause() : el.play();
   }
+
   function step(dir) {
     const v = videoRef.current;
     if (!v) return;
     v.pause();
-    v.currentTime = Math.max(0, Math.min(store.duration, store.currentTime + dir / 30));
+    v.currentTime = Math.max(0, Math.min(store.duration, store.currentTime + dir/30));
   }
 
-  // ── Render: audio only (FFmpeg.wasm) ────────────────────────
   async function renderAudio() {
-    if (!media || isProcessing) return;
+    if (!media||isProcessing) return;
     const { args, outputExt } = buildCommand(media, operations);
-    store.setIsProcessing(true);
-    store.setProgress(0);
+    store.setIsProcessing(true); store.setProgress(0);
     try {
       const blob = await runFFmpeg(media.file, args, outputExt, store.setProgress);
-      const url  = URL.createObjectURL(blob);
-      store.setOutput({ url, name: `output.${outputExt}`, isBlob: true });
+      store.setOutput({ url:URL.createObjectURL(blob), name:`output.${outputExt}`, isBlob:true });
     } catch (err) {
-      alert('Browser render failed: ' + err.message);
+      alert('Render failed:\n' + err.message);
     } finally {
-      store.setIsProcessing(false);
-      store.setProgress(0);
+      store.setIsProcessing(false); store.setProgress(0);
     }
   }
 
-  // ── Process: image via ImageMagick on server ─────────────────
   async function processImage() {
-    if (!media || isProcessing) return;
+    if (!media||isProcessing) return;
     const { args, outputExt } = buildMagickCommand(media, operations);
     store.setIsProcessing(true);
     try {
       const url = await processImageOnServer(media.file, args, outputExt);
-      store.setOutput({ url, name: `output.${outputExt}`, isBlob: false });
+      store.setOutput({ url, name:`output.${outputExt}`, isBlob:false });
     } catch (err) {
-      alert('ImageMagick processing failed:\n' + err.message);
+      alert('ImageMagick failed:\n' + err.message);
     } finally {
       store.setIsProcessing(false);
     }
   }
 
-  // ── Copy video command ────────────────────────────────────────
   function copyVideoCmd() {
     const { command } = buildCommand(media, operations);
     navigator.clipboard.writeText(command).then(() => {
-      setCopiedCTA(true);
-      setTimeout(() => setCopiedCTA(false), 2000);
+      setCopiedCTA(true); setTimeout(()=>setCopiedCTA(false), 2000);
     });
   }
 
   const mStyle = mediaSize.w
-    ? { width: mediaSize.w, height: mediaSize.h }
-    : { maxWidth: '100%', maxHeight: 'calc(100vh - 220px)' };
+    ? { width:mediaSize.w, height:mediaSize.h }
+    : { maxWidth:'100%', maxHeight:'calc(100vh - 220px)' };
 
   const trimParams = operations.trim?.params || {};
+  const activeMediaRef = mediaType === 'video' ? videoRef : audioRef;
 
   return (
     <div className="preview-area"
@@ -128,48 +127,48 @@ export default function Preview() {
     >
       <div className="preview-main" ref={wrapRef}>
         {!media ? (
-          <div className={`drop-zone ${isDrag ? 'over' : ''}`}
-            onClick={() => fileRef.current.click()}>
-            <svg className="dz-icon" width="48" height="48" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="1.5">
+          <div className={`drop-zone ${isDrag?'over':''}`} onClick={()=>fileRef.current.click()}>
+            <svg className="dz-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             <div className="dz-title">Drop media here</div>
             <div className="dz-sub">Video · Audio · Image — any size</div>
             <input ref={fileRef} type="file" accept="video/*,audio/*,image/*"
-              style={{ display:'none' }} onChange={e => loadFile(e.target.files[0])} />
+              style={{display:'none'}} onChange={e=>loadFile(e.target.files[0])} />
           </div>
+
         ) : mediaType === 'video' ? (
           <div className="media-wrap">
             <video ref={videoRef} className="prev-video" src={media.localUrl}
-              style={{ ...mStyle, ...previewStyle }}
+              style={{...mStyle, ...previewStyle}}
               onLoadedMetadata={onVideoMeta}
               onTimeUpdate={e => store.setCurrentTime(e.target.currentTime)}
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
+              onPlay={()=>setIsPlaying(true)} onPause={()=>setIsPlaying(false)}
             />
-            {hasCrop && mediaSize.w > 0 && (
-              <CropOverlay displayW={mediaSize.w} displayH={mediaSize.h} />
-            )}
+            {hasCrop && mediaSize.w > 0 && <CropOverlay displayW={mediaSize.w} displayH={mediaSize.h} />}
           </div>
+
         ) : mediaType === 'image' ? (
           <div className="media-wrap">
             <img className="prev-img" src={media.localUrl} alt={media.name}
-              style={{ ...mStyle, ...previewStyle }} onLoad={onImgLoad} />
-            {hasCrop && mediaSize.w > 0 && (
-              <CropOverlay displayW={mediaSize.w} displayH={mediaSize.h} />
-            )}
+              style={{...mStyle, ...previewStyle}} onLoad={onImgLoad} />
+            {hasCrop && mediaSize.w > 0 && <CropOverlay displayW={mediaSize.w} displayH={mediaSize.h} />}
           </div>
+
         ) : (
-          /* AUDIO */
           <div className="prev-audio">
             <svg className="prev-audio-icon" width="64" height="64" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
             </svg>
             <div className="prev-audio-name">{media.name}</div>
-            <audio controls src={media.localUrl} />
+            {/* Audio element with proper time tracking */}
+            <audio ref={audioRef} controls src={media.localUrl}
+              onLoadedMetadata={e => store.setDuration(e.target.duration)}
+              onTimeUpdate={e => store.setCurrentTime(e.target.currentTime)}
+              onPlay={()=>setIsPlaying(true)} onPause={()=>setIsPlaying(false)}
+            />
             <WaveformDisplay
               file={media.file}
               currentTime={store.currentTime}
@@ -181,19 +180,20 @@ export default function Preview() {
         )}
       </div>
 
-      {/* Trim bar — video + audio */}
-      {media && mediaType === 'video' && hasTrim && (
-        <TrimBar videoRef={videoRef} />
+      {/* Trim bar — video AND audio */}
+      {media && (mediaType==='video'||mediaType==='audio') && hasTrim && (
+        <TrimBar mediaRef={activeMediaRef} />
       )}
 
-      {/* VIDEO: copy-command CTA — no browser rendering */}
+      {/* Video copy-command CTA */}
       {media && mediaType === 'video' && (
         <div className="vid-cta">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
-          <span>Video processing runs on your machine — copy the command below and paste it in your terminal.</span>
-          <button className={`vid-cta-copy ${copiedCTA ? 'ok' : ''}`} onClick={copyVideoCmd}>
+          <span>Video processing runs on your local machine — copy the command below and run it in your terminal.</span>
+          <button className={`vid-cta-copy ${copiedCTA?'ok':''}`} onClick={copyVideoCmd}>
             {copiedCTA ? '✓ Copied!' : 'Copy command'}
           </button>
         </div>
@@ -204,7 +204,7 @@ export default function Preview() {
         <div className="prev-ctrls">
           {mediaType === 'video' && (
             <>
-              <button className="pb" onClick={() => step(-1)} title="Prev frame">
+              <button className="pb" onClick={()=>step(-1)} title="Prev frame">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2" height="16"/>
                 </svg>
@@ -215,22 +215,18 @@ export default function Preview() {
                   : <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                 }
               </button>
-              <button className="pb" onClick={() => step(1)} title="Next frame">
+              <button className="pb" onClick={()=>step(1)} title="Next frame">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <polygon points="5 4 15 12 5 20 5 4"/><rect x="17" y="4" width="2" height="16"/>
                 </svg>
               </button>
-              <span className="time-d">
-                {fmt(store.currentTime)} / {fmt(store.duration)}
-              </span>
+              <span className="time-d">{fmt(store.currentTime)} / {fmt(store.duration)}</span>
             </>
           )}
-
           <div className="psp" />
-
           {output && (
             <a className="pb dl" href={output.url} download={output.name}
-              target={output.isBlob ? undefined : '_blank'} rel="noreferrer">
+              target={output.isBlob?undefined:'_blank'} rel="noreferrer">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -238,16 +234,12 @@ export default function Preview() {
               Download
             </a>
           )}
-
-          {/* Audio: render in browser */}
           {mediaType === 'audio' && (
             <button className="pb render" onClick={renderAudio} disabled={isProcessing}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {isProcessing ? 'Processing…' : 'Render in Browser'}
             </button>
           )}
-
-          {/* Image: process with ImageMagick on server */}
           {mediaType === 'image' && (
             <button className="pb render img-render" onClick={processImage} disabled={isProcessing}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -264,6 +256,6 @@ export default function Preview() {
 }
 
 function fmt(s) {
-  if (!s || isNaN(s)) return '0:00';
-  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,'0')}`;
+  if (!s||isNaN(s)) return '0:00';
+  return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 }
