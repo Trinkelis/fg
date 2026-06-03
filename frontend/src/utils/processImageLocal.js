@@ -4,7 +4,8 @@
  */
 
 // ── Main entry point ──────────────────────────────────────────────────────
-export async function processImageLocal(file, operations, onProgress) {
+export async function processImageLocal(file, operations, onProgress, opts = {}) {
+  const { preview = false, maxPreviewWidth = 600 } = opts;
   const enabled = getEnabledOps(operations);
   if (Object.keys(enabled).length === 0) {
     throw new Error('No operations enabled');
@@ -48,6 +49,13 @@ export async function processImageLocal(file, operations, onProgress) {
     // No scale, so canvas = crop dimensions
     w = cropW;
     h = cropH;
+  }
+
+  // Preview mode: downscale large images for faster pixel processing
+  if (preview && Math.max(w, h) > maxPreviewWidth) {
+    const ratio = maxPreviewWidth / Math.max(w, h);
+    w = Math.round(w * ratio);
+    h = Math.round(h * ratio);
   }
 
   // Handle rotation dimension swap before canvas creation

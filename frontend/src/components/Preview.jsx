@@ -40,9 +40,16 @@ export default function Preview() {
   }, [operations, media, mediaType]);
 
   // ── Live canvas preview for images ──────────────────────────────────
+  const previewAbortRef = useRef(null);
+
   useEffect(() => {
     if (mediaType !== 'image' || !media?.file || !hasEnabledOps) {
       // No operations enabled: show original image, clean up preview
+      // Cancel any pending render
+      if (previewAbortRef.current) {
+        previewAbortRef.current.aborted = true;
+        previewAbortRef.current = null;
+      }
       if (lastPreviewUrl.current) {
         URL.revokeObjectURL(lastPreviewUrl.current);
         lastPreviewUrl.current = null;
@@ -51,23 +58,45 @@ export default function Preview() {
       return;
     }
 
-    // Debounce: re-render preview after user stops adjusting for 150ms
-    if (previewTimer.current) clearTimeout(previewTimer.current);
-    previewTimer.current = setTimeout(async () => {
-      try {
-        // Clean up previous preview URL
-        if (lastPreviewUrl.current) {
-          URL.revokeObjectURL(lastPreviewUrl.current);
+    // Cancel any previous pending render
+    if (previewAbortRef.current) {
+      previewAbortRef.current.aborted = true;
+    }
+
+    // Create abort token for this render cycle
+    const token = { aborted: false };
+    previewAbortRef.current = token;
+
+    // Use rAF + short timeout for responsive feel
+    const rafId = requestAnimationFrame(() => {
+      if (token.aborted) return;
+
+      if (previewTimer.current) clearTimeout(previewTimer.current);
+      previewTimer.current = setTimeout(async () => {
+        if (token.aborted) return;
+
+        try {
+          // Clean up previous preview URL
+          if (lastPreviewUrl.current) {
+            URL.revokeObjectURL(lastPreviewUrl.current);
+          }
+          // Preview mode: downsample large images for speed
+          const result = await processImageLocal(media.file, operations, undefined, { preview: true });
+          if (token.aborted) {
+            // Stale render, discard
+            URL.revokeObjectURL(result.url);
+            return;
+          }
+          lastPreviewUrl.current = result.url;
+          setLivePreviewUrl(result.url);
+        } catch {
+          // Silently fail — preview is best-effort
         }
-        const result = await processImageLocal(media.file, operations);
-        lastPreviewUrl.current = result.url;
-        setLivePreviewUrl(result.url);
-      } catch {
-        // Silently fail — preview is best-effort
-      }
-    }, 150);
+      }, 60); // shorter debounce: 60ms feels instant
+    });
 
     return () => {
+      cancelAnimationFrame(rafId);
       if (previewTimer.current) clearTimeout(previewTimer.current);
     };
   }, [operations, media, mediaType, hasEnabledOps]);
@@ -142,7 +171,8 @@ export default function Preview() {
       const blob = await runFFmpeg(media.file, args, outputExt, store.setProgress);
       store.setOutput({ url:URL.createObjectURL(blob), name:`output.${outputExt}`, isBlob:true });
     } catch (err) {
-      alert('Render failed:\n' + err.message);
+      const msg = err?.message || String(err || 'Unknown error');
+      alert('Render failed:\n' + msg);
     } finally {
       store.setIsProcessing(false); store.setProgress(0);
     }

@@ -14,11 +14,13 @@ export async function loadFFmpeg(onLog) {
   const ff = getInstance();
   if (onLog) ff.on('log', ({ message }) => onLog(message));
   loadProm = (async () => {
-    const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    // Use ES module build — ffmpeg.wasm worker tries importScripts first,
+    // then falls back to dynamic import(). ESM build works with import().
+    const base = '/ffmpeg';
     try {
       await ff.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   'text/javascript'),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+        coreURL: `${base}/ffmpeg-core.esm.js`,
+        wasmURL: `${base}/ffmpeg-core.wasm`,
       });
     } catch (err) {
       loadProm = null; // allow retry on next call
@@ -39,18 +41,39 @@ export async function runFFmpeg(file, args, outputExt, onProgress) {
   const handler = ({ progress }) => onProgress && onProgress(Math.round(progress * 100));
   ff.on('progress', handler);
 
+  // Capture ffmpeg log for better error messages
+  const logs = [];
+  const logHandler = ({ message }) => { logs.push(message); };
+  ff.on('log', logHandler);
+
   try {
     await ff.writeFile(inName, await fetchFile(file));
     const resolved = args.map(a =>
       a === '__INPUT__'  ? inName  :
       a === '__OUTPUT__' ? outName : a
     );
-    const code = await ff.exec(resolved);
-    if (code !== 0) throw new Error(`FFmpeg exited with code ${code}`);
+
+    let code;
+    try {
+      code = await ff.exec(resolved);
+    } catch (execErr) {
+      const tail = logs.slice(-10).join('\n');
+      const msg = execErr?.message || String(execErr);
+      throw new Error(`FFmpeg crashed: ${msg}\n${tail}`);
+    }
+
+    if (code !== 0) {
+      const tail = logs.slice(-10).join('\n');
+      throw new Error(`FFmpeg exited with code ${code}\n${tail}`);
+    }
     const data = await ff.readFile(outName);
     return new Blob([data.buffer], { type: getMime(outputExt) });
+  } catch (err) {
+    // Re-throw with a clean message
+    throw new Error(err?.message || String(err || 'FFmpeg processing failed'));
   } finally {
     ff.off('progress', handler);
+    ff.off('log', logHandler);
     try { await ff.deleteFile(inName);  } catch {}
     try { await ff.deleteFile(outName); } catch {}
   }

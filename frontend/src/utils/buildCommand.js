@@ -4,6 +4,7 @@ export function buildCommand(media, operations) {
   if (!media) return { args:[], command:'', outputExt:'mp4', isScript:false };
 
   const ena = getEnabled(operations);
+  const isAudioOnly = media.type === 'audio';
 
   // ── Datamosh is a special multi-step script, not a single command ──
   if (ena.datamosh) {
@@ -54,7 +55,7 @@ export function buildCommand(media, operations) {
   if (ena.speed) {
     const f = ena.speed.factor || 1.0;
     if (f !== 1.0) {
-      vf.push(`setpts=${(1/f).toFixed(6)}*PTS`);
+      if (!isAudioOnly) vf.push(`setpts=${(1/f).toFixed(6)}*PTS`);
       af.push(...atempoChain(f));
     }
   }

@@ -2,6 +2,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
+# Copy ffmpeg core files to public directory — both UMD and ESM variants
+RUN mkdir -p public/ffmpeg && \
+    cp node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.js public/ffmpeg/ && \
+    cp node_modules/@ffmpeg/core/dist/umd/ffmpeg-core.wasm public/ffmpeg/ && \
+    cp node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js public/ffmpeg/ffmpeg-core.esm.js
 COPY frontend/ ./
 RUN npm run build
 
