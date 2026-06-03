@@ -67,7 +67,7 @@ export default function Header() {
       </div>
 
       <div className="hsp" />
-      <span className="hdr-privacy">🔒 All processing done locally in your browser</span>
+      <span className="hdr-privacy">All processing done locally in your browser</span>
       <a href="https://tools.mwlmedia.org" target="_blank" rel="noreferrer" className="hdr-tools">
         tools.mwlmedia.org ↗
       </a>
