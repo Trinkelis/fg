@@ -46,7 +46,7 @@ export default function CommandBar() {
         {command && (
           <button className={`cbtn ${!isImage&&!isScript ? 'run' : ''}`}
             onClick={() => isScript ? setShowScript(true) : copy()}>
-            {isScript ? '📋 View script' : copied ? '✓ Copied!' : isImage ? 'Copy' : '📋 Copy & run locally'}
+            {isScript ? '📋 View script' : copied ? '✓ Copied!' : isImage ? '📋 Copy' : '📋 Copy & run locally'}
           </button>
         )}
         {output && (
@@ -84,7 +84,17 @@ function highlightCmd(cmd, inputName, isImage, isScript) {
   if (!cmd||isScript) return '';
   const safe  = cmd.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const inRe  = inputName ? new RegExp(inputName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g') : null;
-  const word  = isImage ? 'convert' : 'ffmpeg';
+
+  if (isImage) {
+    // Local processing description
+    return safe
+      .replace(/^(Processing locally:)/, '<span class="tc">$1</span>')
+      .replace(/→/g, '<span class="tf">→</span>')
+      .replace(/output\.\w+/g, m => `<span class="tout">${m}</span>`)
+      .replace(inRe||/(?!x)x/, m => `<span class="tin">${m}</span>`);
+  }
+
+  const word = 'ffmpeg';
   return safe
     .replace(new RegExp(`^(${word})`),'<span class="tc">$1</span>')
     .replace(/((?:^|\s)-[a-zA-Z_:][a-zA-Z0-9_:]*)/g,m=>`<span class="tf">${m}</span>`)

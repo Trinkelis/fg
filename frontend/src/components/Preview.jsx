@@ -4,9 +4,8 @@ import CropOverlay         from './CropOverlay.jsx';
 import TrimBar             from './TrimBar.jsx';
 import WaveformDisplay     from './WaveformDisplay.jsx';
 import { buildCommand, buildCSSPreview } from '../utils/buildCommand.js';
-import { buildMagickCommand }             from '../utils/buildMagickCommand.js';
 import { runFFmpeg }                      from '../utils/ffmpegLocal.js';
-import { processImageOnServer }           from '../utils/imageProcess.js';
+import { processImageLocal }              from '../utils/processImageLocal.js';
 
 export default function Preview() {
   const store = useStore();
@@ -93,13 +92,12 @@ export default function Preview() {
 
   async function processImage() {
     if (!media||isProcessing) return;
-    const { args, outputExt } = buildMagickCommand(media, operations);
-    store.setIsProcessing(true);
+    store.setIsProcessing(true); store.setProgress(0);
     try {
-      const url = await processImageOnServer(media.file, args, outputExt);
-      store.setOutput({ url, name:`output.${outputExt}`, isBlob:false });
+      const { url, name } = await processImageLocal(media.file, operations, store.setProgress);
+      store.setOutput({ url, name, isBlob:true });
     } catch (err) {
-      alert('ImageMagick failed:\n' + err.message);
+      alert('Image processing failed:\n' + err.message);
     } finally {
       store.setIsProcessing(false);
     }

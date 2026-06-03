@@ -78,8 +78,11 @@ body {
   padding:1px 4px; border-radius:6px; font-weight:700;
 }
 .op-list {
-  flex:1; overflow-y:auto; padding:8px;
-  display:flex; flex-direction:column; gap:3px;
+  flex:1; overflow-y:auto; padding:10px 8px;
+  display:flex; flex-direction:column; gap:5px;
+  min-height:0; /* critical: allows flex child to shrink + scroll */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .op-list::-webkit-scrollbar { width:4px; }
 .op-list::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
@@ -89,6 +92,7 @@ body {
 .op-card {
   background:var(--s2); border:1px solid var(--b1);
   border-radius:var(--r); overflow:hidden; transition:border-color .12s;
+  flex-shrink:0;
 }
 .op-card.enabled { border-color:rgba(59,130,246,.45); }
 .op-hdr {
@@ -125,6 +129,7 @@ body {
 .op-body {
   padding:8px 10px 10px; border-top:1px solid var(--b1);
   display:flex; flex-direction:column; gap:8px;
+  max-height:240px; overflow-y:auto;
 }
 .op-note {
   font-size:11px; color:var(--warn);
@@ -359,8 +364,7 @@ body {
   background:rgba(255,255,255,.75); border-radius:1px;
   pointer-events:none; transform:translateX(-50%);
 }
-/* ── Sidebar scroll fix ── */
-.op-list { min-height: 0; } /* critical: allows flex child to shrink + scroll */
+/* ── Sidebar scroll (handled above via min-height:0 on .op-list) ── */
 
 /* ── Datamosh script display ── */
 .cmd-script {

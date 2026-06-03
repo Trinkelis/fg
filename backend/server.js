@@ -14,11 +14,14 @@ const OUTPUTS = '/tmp/fg-outputs';
 
 for (const d of [UPLOADS, OUTPUTS]) fs.mkdirSync(d, { recursive: true });
 
-app.use((_req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy',   'same-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-  next();
-});
+// COOP/COEP headers are set by nginx reverse proxy;
+// setting them here would duplicate headers and break cross-origin isolation.
+// If running without nginx, uncomment the block below:
+// app.use((_req, res, next) => {
+//   res.setHeader('Cross-Origin-Opener-Policy',   'same-origin');
+//   res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+//   next();
+// });
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(DIST));
@@ -66,7 +69,7 @@ app.post('/api/image/process', (req, res) => {
 
   console.log('[magick]', resolved.join(' '));
 
-  execFile('convert', resolved, { timeout: 120_000 }, (err, _out, stderr) => {
+  execFile('magick', resolved, { timeout: 120_000 }, (err, _out, stderr) => {
     if (err) {
       console.error('[magick]', stderr?.slice(-600));
       return res.status(500).json({ error: 'ImageMagick failed', details: stderr?.slice(-600) });
