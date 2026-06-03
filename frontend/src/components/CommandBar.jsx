@@ -5,6 +5,7 @@ import { buildMagickCommand } from '../utils/buildMagickCommand.js';
 
 export default function CommandBar() {
   const { media, mediaType, operations, output } = useStore();
+  const setShowDownloadDialog = useStore(s => s.setShowDownloadDialog);
   const [copied,     setCopied]     = useState(false);
   const [showScript, setShowScript] = useState(false);
 
@@ -49,11 +50,16 @@ export default function CommandBar() {
             {isScript ? '📋 View script' : copied ? '✓ Copied!' : isImage ? '📋 Copy' : '📋 Copy & run locally'}
           </button>
         )}
-        {output && (
+        {output && !isImage && (
           <a className="cbtn dl" href={output.url} download={output.name}
             target={output.isBlob?undefined:'_blank'} rel="noreferrer">
             ↓ Download
           </a>
+        )}
+        {output && isImage && (
+          <button className="cbtn dl" onClick={() => setShowDownloadDialog(true)}>
+            ↓ Download
+          </button>
         )}
       </div>
 

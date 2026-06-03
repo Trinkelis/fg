@@ -293,15 +293,44 @@ export function buildCSSPreview(operations) {
   if (ena.vhsEffect)   f.push(`saturate(${0.6})`,`contrast(1.05)`);
   if (ena.filmGrain)   f.push(`contrast(1.03)`);
   if (ena.neon)        f.push('invert(1)','contrast(2)');
+  if (ena.im_negate)   f.push('invert(1)');
   if (ena.rotate)      t.push(`rotate(${Number(ena.rotate.angle)||90}deg)`);
   if (ena.flip) {
     if (ena.flip.horizontal) t.push('scaleX(-1)');
     if (ena.flip.vertical)   t.push('scaleY(-1)');
   }
+  // Sharpen approximation via contrast
+  if (ena.sharpen) {
+    const amt = (ena.sharpen.amount || 1.5);
+    f.push(`contrast(${1 + amt * 0.3})`);
+  }
   return {
     filter:    f.length ? f.join(' ') : undefined,
     transform: t.length ? t.join(' ') : undefined,
   };
+}
+
+// Image-specific preview helpers (returns additional style props for <img>)
+export function buildImagePreviewStyles(operations, naturalW, naturalH) {
+  const ena = getEnabled(operations);
+  const styles = {};
+
+  // Crop preview via clip-path
+  if (ena.crop && ena.crop.w && ena.crop.h && naturalW && naturalH) {
+    const { x=0, y=0, w, h } = ena.crop;
+    const top = (y / naturalH) * 100;
+    const right = ((naturalW - x - w) / naturalW) * 100;
+    const bottom = ((naturalH - y - h) / naturalH) * 100;
+    const left = (x / naturalW) * 100;
+    styles.clipPath = `inset(${top}% ${right}% ${bottom}% ${left}%)`;
+  }
+
+  // Pixelate preview via image-rendering
+  if (ena.im_pixelate) {
+    styles.imageRendering = 'pixelated';
+  }
+
+  return styles;
 }
 
 // ── helpers ──────────────────────────────────────────────────

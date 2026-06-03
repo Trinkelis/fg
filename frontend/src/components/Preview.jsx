@@ -3,7 +3,8 @@ import useStore            from '../store/useStore.js';
 import CropOverlay         from './CropOverlay.jsx';
 import TrimBar             from './TrimBar.jsx';
 import WaveformDisplay     from './WaveformDisplay.jsx';
-import { buildCommand, buildCSSPreview } from '../utils/buildCommand.js';
+import DownloadDialog      from './DownloadDialog.jsx';
+import { buildCommand, buildCSSPreview, buildImagePreviewStyles } from '../utils/buildCommand.js';
 import { runFFmpeg }                      from '../utils/ffmpegLocal.js';
 import { processImageLocal }              from '../utils/processImageLocal.js';
 
@@ -19,11 +20,66 @@ export default function Preview() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [mediaSize, setMediaSize] = useState({ w:0, h:0 });
   const [copiedCTA, setCopiedCTA] = useState(false);
+  const showDownloadDlg = useStore(s => s.showDownloadDialog);
+  const setShowDownloadDlg = useStore(s => s.setShowDownloadDialog);
+  const [livePreviewUrl, setLivePreviewUrl] = useState(null);
+  const previewTimer = useRef(null);
+  const lastPreviewUrl = useRef(null);
 
   const hasCrop = operations.crop?.enabled;
   const hasTrim = operations.trim?.enabled;
 
+  const hasEnabledOps = useMemo(() => {
+    return Object.values(operations).some(op => op?.enabled);
+  }, [operations]);
+
   const previewStyle = useMemo(() => buildCSSPreview(operations), [operations]);
+  const imagePreviewStyles = useMemo(() => {
+    if (mediaType !== 'image' || !media) return {};
+    return buildImagePreviewStyles(operations, media.actualW, media.actualH);
+  }, [operations, media, mediaType]);
+
+  // ── Live canvas preview for images ──────────────────────────────────
+  useEffect(() => {
+    if (mediaType !== 'image' || !media?.file || !hasEnabledOps) {
+      // No operations enabled: show original image, clean up preview
+      if (lastPreviewUrl.current) {
+        URL.revokeObjectURL(lastPreviewUrl.current);
+        lastPreviewUrl.current = null;
+      }
+      setLivePreviewUrl(null);
+      return;
+    }
+
+    // Debounce: re-render preview after user stops adjusting for 150ms
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    previewTimer.current = setTimeout(async () => {
+      try {
+        // Clean up previous preview URL
+        if (lastPreviewUrl.current) {
+          URL.revokeObjectURL(lastPreviewUrl.current);
+        }
+        const result = await processImageLocal(media.file, operations);
+        lastPreviewUrl.current = result.url;
+        setLivePreviewUrl(result.url);
+      } catch {
+        // Silently fail — preview is best-effort
+      }
+    }, 150);
+
+    return () => {
+      if (previewTimer.current) clearTimeout(previewTimer.current);
+    };
+  }, [operations, media, mediaType, hasEnabledOps]);
+
+  // Clean up preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (lastPreviewUrl.current) {
+        URL.revokeObjectURL(lastPreviewUrl.current);
+      }
+    };
+  }, []);
 
   const computeSize = useCallback((natW, natH) => {
     const wrap = wrapRef.current;
@@ -51,6 +107,8 @@ export default function Preview() {
   }
 
   function onImgLoad(e) {
+    // Only track original image dimensions (not live preview)
+    if (livePreviewUrl && e.target.src === livePreviewUrl) return;
     const { naturalWidth:w, naturalHeight:h } = e.target;
     store.setMediaDims(w, h);
     computeSize(w, h);
@@ -149,8 +207,15 @@ export default function Preview() {
 
         ) : mediaType === 'image' ? (
           <div className="media-wrap">
-            <img className="prev-img" src={media.localUrl} alt={media.name}
-              style={{...mStyle, ...previewStyle}} onLoad={onImgLoad} />
+            <img className="prev-img"
+              src={livePreviewUrl || media.localUrl} alt={media.name}
+              style={{
+                ...mStyle,
+                // When live canvas preview is active, effects are already baked in —
+                // don't double-apply CSS preview styles
+                ...(livePreviewUrl ? {} : { ...previewStyle, ...imagePreviewStyles })
+              }}
+              onLoad={onImgLoad} />
             {hasCrop && mediaSize.w > 0 && <CropOverlay displayW={mediaSize.w} displayH={mediaSize.h} />}
           </div>
 
@@ -222,7 +287,7 @@ export default function Preview() {
             </>
           )}
           <div className="psp" />
-          {output && (
+          {output && mediaType !== 'image' && (
             <a className="pb dl" href={output.url} download={output.name}
               target={output.isBlob?undefined:'_blank'} rel="noreferrer">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -231,6 +296,15 @@ export default function Preview() {
               </svg>
               Download
             </a>
+          )}
+          {output && mediaType === 'image' && (
+            <button className="pb dl" onClick={() => setShowDownloadDlg(true)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download
+            </button>
           )}
           {mediaType === 'audio' && (
             <button className="pb render" onClick={renderAudio} disabled={isProcessing}>
@@ -249,6 +323,7 @@ export default function Preview() {
           )}
         </div>
       )}
+      {showDownloadDlg && <DownloadDialog onClose={() => setShowDownloadDlg(false)} />}
     </div>
   );
 }

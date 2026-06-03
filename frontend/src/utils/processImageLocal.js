@@ -22,17 +22,39 @@ export async function processImageLocal(file, operations, onProgress) {
   let outputExt = getOutputExt(file.name, enabled);
 
   // Pre-calculate output size for scale/crop/pad operations
+  let cropW = null, cropH = null, cropX = 0, cropY = 0;
+  if (enabled.crop && enabled.crop.w && enabled.crop.h) {
+    cropW = enabled.crop.w;
+    cropH = enabled.crop.h;
+    cropX = enabled.crop.x || 0;
+    cropY = enabled.crop.y || 0;
+  }
+
   if (enabled.scale) {
+    const baseW = cropW || w;
+    const baseH = cropH || h;
     const { width, height, keepAspect } = enabled.scale;
     if (keepAspect !== false) {
       const ratio = Math.min(
-        (width > 0 ? width / w : Infinity),
-        (height > 0 ? height / h : Infinity)
+        (width > 0 ? width / baseW : Infinity),
+        (height > 0 ? height / baseH : Infinity)
       );
-      if (isFinite(ratio)) { w = Math.round(w * ratio); h = Math.round(h * ratio); }
+      if (isFinite(ratio)) { w = Math.round(baseW * ratio); h = Math.round(baseH * ratio); }
     } else {
       if (width > 0) w = width;
       if (height > 0) h = height;
+    }
+  } else if (cropW && cropH) {
+    // No scale, so canvas = crop dimensions
+    w = cropW;
+    h = cropH;
+  }
+
+  // Handle rotation dimension swap before canvas creation
+  if (enabled.rotate) {
+    const angle = Number(enabled.rotate.angle) || 90;
+    if (angle === 90 || angle === 270) {
+      [w, h] = [h, w]; // swap for 90/270 degree rotation
     }
   }
 
@@ -83,24 +105,21 @@ export async function processImageLocal(file, operations, onProgress) {
 function loadImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = URL.createObjectURL(file);
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = url;
   });
 }
 
 // ── Draw step: render image with transforms ───────────────────────────────
 async function applyDraw(ctx, img, ops, w, h) {
-  // Handle rotation by drawing to a rotated canvas
-  if (ops.rotate) {
-    const angle = Number(ops.rotate.angle) || 90;
-    if (angle === 90 || angle === 270) {
-      // Swap dimensions
-      ctx.canvas.width = h;
-      ctx.canvas.height = w;
-    }
-  }
-
   ctx.save();
 
   // Apply flip transforms
@@ -130,13 +149,8 @@ async function applyDraw(ctx, img, ops, w, h) {
   }
 
   // Draw image (handles scale + crop)
-  if (ops.crop) {
-    const { x = 0, y = 0, w: cw, h: ch } = ops.crop;
-    if (cw && ch) {
-      ctx.drawImage(img, x, y, cw, ch, 0, 0, ctx.canvas.width, ctx.canvas.height);
-    } else {
-      ctx.drawImage(img, 0, 0, ctx.canvas.width, ctx.canvas.height);
-    }
+  if (ops.crop && ops.crop.w && ops.crop.h) {
+    ctx.drawImage(img, ops.crop.x || 0, ops.crop.y || 0, ops.crop.w, ops.crop.h, 0, 0, ctx.canvas.width, ctx.canvas.height);
   } else {
     ctx.drawImage(img, 0, 0, ctx.canvas.width, ctx.canvas.height);
   }

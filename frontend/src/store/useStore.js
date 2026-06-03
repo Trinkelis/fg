@@ -11,6 +11,7 @@ const useStore = create((set, get) => ({
   duration:    0,
   activeCategory: 'video',
   activeOp:    null,
+  showDownloadDialog: false,
 
   loadMedia(file) {
     const prev = get().media;
@@ -67,6 +68,7 @@ const useStore = create((set, get) => ({
   setDuration:     d => set({ duration:d }),
   setActiveCategory: c => set({ activeCategory:c }),
   setActiveOp: id => set(s => ({ activeOp: s.activeOp === id ? null : id })),
+  setShowDownloadDialog: v => set({ showDownloadDialog:v }),
 }));
 
 export default useStore;
