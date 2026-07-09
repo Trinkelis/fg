@@ -18,6 +18,9 @@ const PRESETS = [
 
 export default function Header() {
   const { media, loadMedia } = useStore();
+  const transOn   = useStore(s => s.operations.datamoshTransition?.enabled);
+  const mediaB    = useStore(s => s.mediaB);
+  const openFileB = useStore(s => s.openFileB);
   const fileRef   = useRef();
   const [showPre, setShowPre] = useState(false);
 
@@ -49,6 +52,21 @@ export default function Header() {
       <input ref={fileRef} type="file" accept="video/*,audio/*,image/*"
         style={{display:'none'}} onChange={e=>e.target.files[0]&&loadMedia(e.target.files[0])} />
 
+      {transOn && (
+        <div className="hdr-file hdr-file-b" onClick={() => openFileB?.()}
+          title="Second clip (destination) for the datamosh A→B transition">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span className="hdr-fname">
+            <span style={{ color:'var(--violet)', fontWeight:600 }}>Clip B:</span>{' '}
+            {mediaB?.name || 'Open destination clip…'}
+          </span>
+          {mediaB && <span className="hdr-info">{(mediaB.file.size/1024/1024).toFixed(1)} MB</span>}
+        </div>
+      )}
+
       <div style={{position:'relative'}}>
         <button className="hdr-preset-btn" onClick={()=>setShowPre(p=>!p)}>⚡ Presets</button>
         {showPre && (
@@ -67,7 +85,15 @@ export default function Header() {
       </div>
 
       <div className="hsp" />
-      <span className="hdr-privacy">All processing done locally in your browser</span>
+      <span className="hdr-version" title="fg · FFmpeg GUI">v3.2</span>
+      <span className="hdr-privacy"
+        title="Video and image editing happens entirely in your browser. The Datamosh effect runs on the server for the duration of the request and the result is streamed back to you — your video and the output are deleted immediately and never written to persistent storage.">
+        🔒 Video &amp; image editing runs locally in your browser
+      </span>
+      <span className="hdr-privacy hdr-privacy-warn"
+        title="Datamosh is rendered on the server (ffgac + ffedit), but the input and output are streamed and never saved to disk. No download URL is exposed after the response ends.">
+        ⚠ Datamosh runs on the server · not stored
+      </span>
       <a href="https://tools.mwlmedia.org" target="_blank" rel="noreferrer" className="hdr-tools">
         tools.mwlmedia.org ↗
       </a>

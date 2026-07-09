@@ -46,6 +46,9 @@ export default function OperationCard({ op }) {
           {op.hasTrimBar && (
             <div className="op-hint">Use the trim bar below the preview to set start/end points.</div>
           )}
+          {op.hasMoshBar && (
+            <div className="op-hint">Use the timeline below the preview: click the track to scrub, drag the handle to set where the mosh / transition starts.</div>
+          )}
           {op.hasCropOverlay && (
             <div className="op-hint">Drag the handles in the preview to set the crop region.</div>
           )}
@@ -53,7 +56,7 @@ export default function OperationCard({ op }) {
             <Controls opId={op.id} controls={op.controls}
               params={opState?.params || op.defaultParams} />
           )}
-          {op.controls.length === 0 && !op.hasTrimBar && !op.hasCropOverlay && !op.note && (
+          {op.controls.length === 0 && !op.hasTrimBar && !op.hasMoshBar && !op.hasCropOverlay && !op.note && (
             <div className="op-hint">No settings — just enable/disable.</div>
           )}
         </div>

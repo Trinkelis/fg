@@ -278,10 +278,14 @@ async function applyPixelFilters(ctx, canvas, ops) {
       -1, 1, 1,
       0, 1, 2,
     ]);
-    // Add 128 to bring to mid-gray
+    // Add 128 to bring to mid-gray. Reading each channel's own value before
+    // the first write (R) avoids accidentally using the updated R for G and B.
     const d = imageData.data;
     for (let i = 0; i < d.length; i += 4) {
-      d[i] = d[i + 1] = d[i + 2] = clamp(d[i] + 128);
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      d[i]     = clamp(r + 128);
+      d[i + 1] = clamp(g + 128);
+      d[i + 2] = clamp(b + 128);
     }
   }
 
@@ -862,42 +866,56 @@ function autoGamma(id) {
 }
 
 function simpleCLAHE(id, tileSize, clipLimit) {
-  // Simplified CLAHE: just normalize per tile
+  // Tile-based contrast stretch with histogram clipping (simplified CLAHE).
   const { width: w, height: h, data } = id;
   const out = cloneImageData(id);
   const src = new Uint8ClampedArray(data);
   const ts = Math.max(16, Math.min(128, tileSize));
   const tilesX = Math.ceil(w / ts);
   const tilesY = Math.ceil(h / ts);
+  const tilePixels = ts * ts;
+  const clipMax = Math.max(1, Math.round(clipLimit * tilePixels / 256));
 
   for (let ty = 0; ty < tilesY; ty++) {
     for (let tx = 0; tx < tilesX; tx++) {
       const x0 = tx * ts, y0 = ty * ts;
       const x1 = Math.min(w, x0 + ts), y1 = Math.min(h, y0 + ts);
 
-      // Find min/max in tile
-      let min = 255, max = 0;
+      // Build luminance histogram for the tile.
+      const hist = new Uint32Array(256);
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
           const i = (y * w + x) * 4;
-          const v = src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114;
-          if (v < min) min = v;
-          if (v > max) max = v;
+          const v = Math.round(src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114);
+          hist[v]++;
         }
       }
 
-      if (max > min) {
-        const range = max - min;
-        // Clip based on limit
-        const clipMax = clipLimit * (max - min) / 255;
-        for (let y = y0; y < y1; y++) {
-          for (let x = x0; x < x1; x++) {
-            const i = (y * w + x) * 4;
-            for (let c = 0; c < 3; c++) {
-              const val = clamp(((src[i + c] - min) / range) * 255);
-              out.data[i + c] = clamp(val);
-            }
-          }
+      // Clip histogram excess and redistribute the clipped amount evenly.
+      let clipped = 0;
+      for (let i = 0; i < 256; i++) {
+        if (hist[i] > clipMax) { clipped += hist[i] - clipMax; hist[i] = clipMax; }
+      }
+      const redistribute = clipped / 256 | 0;
+      let leftover = clipped - redistribute * 256;
+      for (let i = 0; i < 256; i++) hist[i] += redistribute;
+      while (leftover-- > 0) hist[leftover % 256]++;
+
+      // CDF → LUT.
+      const lut = new Uint8Array(256);
+      let sum = 0;
+      for (let i = 0; i < 256; i++) { sum += hist[i]; lut[i] = Math.round((sum / tilePixels) * 255); }
+
+      // Apply LUT, scaling each channel by its own value to preserve hue.
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * w + x) * 4;
+          const v = Math.round(src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114);
+          const ev = lut[v];
+          const scale = v > 0 ? ev / v : 1;
+          out.data[i]     = clamp(src[i]     * scale);
+          out.data[i + 1] = clamp(src[i + 1] * scale);
+          out.data[i + 2] = clamp(src[i + 2] * scale);
         }
       }
     }

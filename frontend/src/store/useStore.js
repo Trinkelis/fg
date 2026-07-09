@@ -3,6 +3,8 @@ import { create } from 'zustand';
 const useStore = create((set, get) => ({
   media:       null,   // { file, name, type, localUrl, actualW, actualH }
   mediaType:   null,   // 'video' | 'audio' | 'image'
+  mediaB:      null,   // secondary clip (for datamoshTransition)
+  mediaBType:  null,
   operations:  {},     // { [id]: { enabled: bool, params: {} } }
   isProcessing:false,
   progress:    0,
@@ -27,6 +29,21 @@ const useStore = create((set, get) => ({
 
   setMediaDims(w, h) {
     set(s => ({ media: s.media ? { ...s.media, actualW:w, actualH:h } : null }));
+  },
+
+  loadMediaB(file) {
+    const prev = get().mediaB;
+    if (prev?.localUrl) URL.revokeObjectURL(prev.localUrl);
+    if (!file) {
+      set({ mediaB: null, mediaBType: null });
+      return;
+    }
+    const url  = URL.createObjectURL(file);
+    const type = file.type.startsWith('video/') ? 'video'
+               : file.type.startsWith('audio/') ? 'audio'
+               : 'image';
+    set({ mediaB: { file, name:file.name, type, localUrl:url },
+          mediaBType: type });
   },
 
   setOperation(id, params) {
@@ -69,6 +86,8 @@ const useStore = create((set, get) => ({
   setActiveCategory: c => set({ activeCategory:c }),
   setActiveOp: id => set(s => ({ activeOp: s.activeOp === id ? null : id })),
   setShowDownloadDialog: v => set({ showDownloadDialog:v }),
+  openFileB: null,   // function ref Preview sets so Header can trigger the hidden input
+  setOpenFileB:  fn => set({ openFileB: fn }),
 }));
 
 export default useStore;

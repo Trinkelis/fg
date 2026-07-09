@@ -1,20 +1,8 @@
-import { buildDatamoshScript } from './buildDatamoshScript.js';
-
 export function buildCommand(media, operations) {
   if (!media) return { args:[], command:'', outputExt:'mp4', isScript:false };
 
   const ena = getEnabled(operations);
   const isAudioOnly = media.type === 'audio';
-
-  // ── Datamosh is a special multi-step script, not a single command ──
-  if (ena.datamosh) {
-    return {
-      args: [],
-      command: buildDatamoshScript(media, ena.datamosh),
-      outputExt: 'mp4',
-      isScript: true,
-    };
-  }
 
   const pre  = []; // before -i
   const post = []; // after  -i

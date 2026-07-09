@@ -126,21 +126,35 @@ export const OPERATIONS = [
     defaultParams:{ size:10 },
     controls:[{ id:'size', label:'Pixel size', type:'slider', min:2, max:64, step:1, unit:'px' }]},
 
-  { id:'datamosh', label:'Datamosh (Glitch / Video Moshing)', category:'video', applies:['video'],
-    isScript:true,
-    defaultParams:{ interpolate:false, scaleFactor:1, targetFps:60, keepAudio:true, outputWidth:1280 },
+  { id:'datamosh', label:'Datamosh (Native · FFglitch)', category:'video', applies:['video'],
+    defaultParams:{ moshStart:5, normalGop:30, quality:3 },
     controls:[
-      { id:'interpolate',   label:'Interpolate frames (smoother mosh)', type:'checkbox' },
-      { id:'scaleFactor',   label:'Scale multiplier (smaller blocks)',   type:'select', options:[
-        { value:1, label:'1× — original size' },
-        { value:2, label:'2× — double (recommended)' },
-        { value:3, label:'3× — triple'         },
-      ]},
-      { id:'targetFps',     label:'Target FPS (interpolation)',          type:'slider', min:24, max:120, step:6 },
-      { id:'keepAudio',     label:'Keep original audio',                 type:'checkbox' },
-      { id:'outputWidth',   label:'Output width',                        type:'number',  min:320, max:3840, unit:'px' },
+      { id:'normalGop', label:'GOP before mosh',     type:'number', min:1, max:300, step:1 },
+      { id:'quality',   label:'Quality (2=best)',    type:'slider', min:2, max:10, step:1 },
     ],
-    note:'Generates a complete bash script (Linux/macOS). Requires libxvid in your local FFmpeg. Run the script from the folder containing your video.' },
+    note:'Server-rendered via FFglitch (ffgac + ffedit). The mosh start time '
+        + 'is set on the timeline below the preview — click anywhere on it to '
+        + 'scrub and mark the moment the melt begins. The video stream is '
+        + 'processed and returned directly; nothing is saved on the server.',
+    hasMoshBar:true },
+
+  { id:'datamoshTransition', label:'Datamosh (Transition · A→B)', category:'video', applies:['video'],
+    defaultParams:{ transitionAt:5, meltDuration:3, normalGop:30, quality:3, includeAudio:true },
+    controls:[
+      { id:'meltDuration', label:'Melt duration (s, 0 = never settles)', type:'number', min:0, max:600, step:0.5 },
+      { id:'normalGop',    label:'GOP after melt (if settles)',          type:'number', min:1, max:300, step:1 },
+      { id:'quality',      label:'Quality (2=best)',                    type:'slider', min:2, max:10, step:1 },
+      { id:'includeAudio', label:'Include audio (hard cut at transition)', type:'checkbox' },
+    ],
+    note:'Server-rendered A→datamosh→B transition. Load clip A as your main video, '
+        + 'then load clip B via the “Clip B (destination)” button in the header. '
+        + 'The transition point on clip A’s timeline is set the same way as the '
+        + 'single-clip mosh — click anywhere on the timeline below the preview. '
+        + 'Melt duration = seconds until B is allowed a clean keyframe; 0 = never '
+        + 'settles, the rest of B stays moshed forever. B is auto-scaled to A’s '
+        + 'resolution/fps. Nothing is saved on the server — both inputs and the '
+        + 'output are streamed through and deleted in the same request.',
+    hasMoshBar:true },
 
   // ════════════════════════════════════════════════════════════
   //  AUDIO

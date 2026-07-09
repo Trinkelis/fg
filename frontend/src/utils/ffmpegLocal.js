@@ -1,5 +1,5 @@
-import { FFmpeg }               from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile } from '@ffmpeg/util';
 
 let inst     = null;
 let loadProm = null;
@@ -12,15 +12,19 @@ function getInstance() {
 export async function loadFFmpeg(onLog) {
   if (loadProm) return loadProm;
   const ff = getInstance();
-  if (onLog) ff.on('log', ({ message }) => onLog(message));
+
+  // Attach a single persistent log handler and fan-out to the latest subscriber.
+  // (ff.on('log') would otherwise stack handlers across repeated calls.)
+  let currentHandler = onLog || null;
+  ff.on('log', ({ message }) => { if (currentHandler) currentHandler(message); });
+
   loadProm = (async () => {
-    // Use ES module build — ffmpeg.wasm worker tries importScripts first,
-    // then falls back to dynamic import(). ESM build works with import().
-    const base = '/ffmpeg';
+    // Use the ES module build — ffmpeg.wasm's worker tries importScripts first
+    // then falls back to dynamic import(). The ESM build works with import().
     try {
       await ff.load({
-        coreURL: `${base}/ffmpeg-core.esm.js`,
-        wasmURL: `${base}/ffmpeg-core.wasm`,
+        coreURL: '/ffmpeg/ffmpeg-core.esm.js',
+        wasmURL: '/ffmpeg/ffmpeg-core.wasm',
       });
     } catch (err) {
       loadProm = null; // allow retry on next call
@@ -28,23 +32,26 @@ export async function loadFFmpeg(onLog) {
       throw err;
     }
   })();
+
+  // Allow callers to swap the log subscriber (e.g. between runs).
+  loadProm.setLogHandler = (fn) => { currentHandler = fn || null; };
   return loadProm;
 }
 
 export async function runFFmpeg(file, args, outputExt, onProgress) {
-  await loadFFmpeg();
+  const loader  = await loadFFmpeg();
   const ff      = getInstance();
   const inExt   = (file.name.split('.').pop() || 'bin').toLowerCase();
   const inName  = `in.${inExt}`;
   const outName = `out.${outputExt}`;
 
-  const handler = ({ progress }) => onProgress && onProgress(Math.round(progress * 100));
-  ff.on('progress', handler);
+  const progHandler = ({ progress }) => onProgress && onProgress(Math.round(progress * 100));
+  ff.on('progress', progHandler);
 
-  // Capture ffmpeg log for better error messages
+  // Capture ffmpeg log for better error messages.
   const logs = [];
   const logHandler = ({ message }) => { logs.push(message); };
-  ff.on('log', logHandler);
+  loader.setLogHandler(logHandler);
 
   try {
     await ff.writeFile(inName, await fetchFile(file));
@@ -72,8 +79,8 @@ export async function runFFmpeg(file, args, outputExt, onProgress) {
     // Re-throw with a clean message
     throw new Error(err?.message || String(err || 'FFmpeg processing failed'));
   } finally {
-    ff.off('progress', handler);
-    ff.off('log', logHandler);
+    ff.off('progress', progHandler);
+    loader.setLogHandler(null);
     try { await ff.deleteFile(inName);  } catch {}
     try { await ff.deleteFile(outName); } catch {}
   }

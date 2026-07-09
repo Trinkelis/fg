@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import useStore            from '../store/useStore.js';
 import CropOverlay         from './CropOverlay.jsx';
 import TrimBar             from './TrimBar.jsx';
+import MoshStartBar        from './MoshStartBar.jsx';
 import WaveformDisplay     from './WaveformDisplay.jsx';
 import DownloadDialog      from './DownloadDialog.jsx';
 import { buildCommand, buildCSSPreview, buildImagePreviewStyles } from '../utils/buildCommand.js';
@@ -10,12 +11,13 @@ import { processImageLocal }              from '../utils/processImageLocal.js';
 
 export default function Preview() {
   const store = useStore();
-  const { media, mediaType, operations, isProcessing, output } = store;
+  const { media, mediaType, mediaB, mediaBType, operations, isProcessing, output } = store;
 
-  const videoRef  = useRef();
-  const audioRef  = useRef();
-  const wrapRef   = useRef();
-  const fileRef   = useRef();
+  const videoRef    = useRef();
+  const audioRef    = useRef();
+  const wrapRef     = useRef();
+  const fileRef     = useRef();
+  const fileBRef    = useRef();
   const [isDrag,    setIsDrag]    = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [mediaSize, setMediaSize] = useState({ w:0, h:0 });
@@ -28,6 +30,18 @@ export default function Preview() {
 
   const hasCrop = operations.crop?.enabled;
   const hasTrim = operations.trim?.enabled;
+  const hasMosh = operations.datamosh?.enabled;
+  const hasMoshTrans = operations.datamoshTransition?.enabled;
+  const setOpenFileB = useStore(s => s.setOpenFileB);
+
+  // Expose a callback the Header can use to open the hidden fileB input
+  // when the datamosh-transition op is enabled. Only register when needed.
+  useEffect(() => {
+    if (hasMoshTrans) {
+      setOpenFileB(() => fileBRef.current?.click());
+      return () => setOpenFileB(null);
+    }
+  }, [hasMoshTrans, setOpenFileB]);
 
   const hasEnabledOps = useMemo(() => {
     return Object.values(operations).some(op => op?.enabled);
@@ -178,6 +192,146 @@ export default function Preview() {
     }
   }
 
+  async function renderDatamosh() {
+    if (!media || mediaType !== 'video' || isProcessing) return;
+    const p = operations.datamosh?.params || {};
+    const moshStart = Number(p.moshStart ?? 5);
+    const normalGop = Math.max(1, parseInt(p.normalGop, 10) || 30);
+    const quality   = Math.max(2, Math.min(31, parseInt(p.quality, 10) || 3));
+
+    store.setIsProcessing(true); store.setProgress(10);
+    try {
+      const fd = new FormData();
+      fd.append('file', media.file);
+      fd.append('moshStart', String(moshStart));
+      fd.append('normalGop', String(normalGop));
+      fd.append('quality',   String(quality));
+
+      store.setProgress(30);
+      const r = await fetch('/api/datamosh', { method: 'POST', body: fd });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.error || `Datamosh failed (${r.status})`);
+      }
+      // Server streams the .avi directly (no persistent URL).
+      // Pipeline metadata is on custom response headers.
+      const fps     = parseFloat(r.headers.get('X-Fg-Fps'));
+      const mFrame  = parseInt(r.headers.get('X-Fg-Mosh-Frame'), 10);
+      const tFrames = parseInt(r.headers.get('X-Fg-Total-Frames') || '', 10);
+
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      store.setProgress(100);
+
+      // Revoke any previous datamosh blob URL before replacing.
+      if (output?.url && output.isBlob && output.name === 'output.avi') {
+        URL.revokeObjectURL(output.url);
+      }
+      store.setOutput({ url, name: 'output.avi', isBlob: true });
+      if (Number.isFinite(fps)) {
+        console.log(`[datamosh] fps=${fps} mosh@frame=${mFrame}${Number.isFinite(tFrames) ? ` of ${tFrames}` : ''}`);
+      }
+    } catch (err) {
+      alert('Datamosh failed:\n' + (err?.message || err));
+    } finally {
+      store.setIsProcessing(false);
+      store.setProgress(0);
+    }
+  }
+
+  async function renderDatamoshTransition() {
+    if (!media || mediaType !== 'video' || isProcessing) return;
+    if (!mediaB || mediaBType !== 'video') {
+      alert('Datamosh transition needs a second clip (Clip B / destination).\n\n' +
+            'Use the “Clip B (destination)” button in the header to load it.');
+      return;
+    }
+    const p = operations.datamoshTransition?.params || {};
+    const transitionAt = Number(p.transitionAt ?? 5);
+    // 0 (or "never" sentinel) → no settle → permanent melt.
+    const meltDuration = (p.meltDuration == null || Number(p.meltDuration) === 0)
+      ? null
+      : Number(p.meltDuration);
+    const normalGop    = Math.max(1, parseInt(p.normalGop, 10) || 30);
+    const quality      = Math.max(2, Math.min(31, parseInt(p.quality, 10) || 3));
+    const includeAudio = p.includeAudio !== false;
+
+    if (!(transitionAt >= 0)) {
+      alert('Transition point must be ≥ 0 seconds.');
+      return;
+    }
+
+    store.setIsProcessing(true); store.setProgress(0.05);
+    let pollTimer = null;
+    try {
+      const fd = new FormData();
+      fd.append('fileA', media.file);
+      fd.append('fileB', mediaB.file);
+      fd.append('transitionAt', String(transitionAt));
+      fd.append('meltDuration',  meltDuration == null ? '' : String(meltDuration));
+      fd.append('normalGop',     String(normalGop));
+      fd.append('quality',       String(quality));
+      fd.append('includeAudio',  String(includeAudio));
+
+      // 1. POST — returns a jobId in <1s. This avoids the browser's
+      //    default "first byte" timeout for long-running requests.
+      const post = await fetch('/api/datamosh-transition', { method: 'POST', body: fd });
+      if (!post.ok) {
+        const e = await post.json().catch(() => ({}));
+        throw new Error(e.error || `Datamosh transition failed (${post.status})`);
+      }
+      const { jobId } = await post.json();
+
+      // 2. Poll for status until the job is done or errors out.
+      let jobInfo = null;
+      while (true) {
+        const s = await fetch(`/api/datamosh-transition/${jobId}`);
+        if (!s.ok) throw new Error(`status check failed (${s.status})`);
+        jobInfo = await s.json();
+        store.setProgress(Math.max(0.05, Math.min(0.95, jobInfo.progress || 0)));
+        if (jobInfo.status === 'done')  break;
+        if (jobInfo.status === 'error') throw new Error(jobInfo.error || 'Pipeline failed');
+        await new Promise(r => { pollTimer = setTimeout(r, 1000); });
+      }
+
+      // 3. Download the result.
+      store.setProgress(0.97);
+      const r = await fetch(`/api/datamosh-transition/${jobId}/download`);
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.error || `Download failed (${r.status})`);
+      }
+      const fps      = parseFloat(r.headers.get('X-Fg-Fps'));
+      const w        = parseInt(r.headers.get('X-Fg-Frame-Width') || '', 10);
+      const h        = parseInt(r.headers.get('X-Fg-Frame-Height') || '', 10);
+      const tFrame   = parseInt(r.headers.get('X-Fg-Transition-Frame') || '', 10);
+      const sFrame   = r.headers.get('X-Fg-Settle-Frame');
+
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      store.setProgress(1);
+
+      // Revoke any previous datamosh blob URL before replacing.
+      const prev = store.output;
+      if (prev?.url && prev.isBlob && /^(output|transition-).+\.avi$/.test(prev.name || '')) {
+        URL.revokeObjectURL(prev.url);
+      }
+      store.setOutput({ url, name: 'transition.avi', isBlob: true });
+      if (Number.isFinite(fps)) {
+        console.log(
+          `[datamosh-transition] ${w}x${h}@${fps.toFixed(3)}fps ` +
+          `transition@frame=${tFrame} settle=${sFrame ?? 'never'}`
+        );
+      }
+    } catch (err) {
+      alert('Datamosh transition failed:\n' + (err?.message || err));
+    } finally {
+      if (pollTimer) clearTimeout(pollTimer);
+      store.setIsProcessing(false);
+      store.setProgress(0);
+    }
+  }
+
   async function processImage() {
     if (!media||isProcessing) return;
     store.setIsProcessing(true); store.setProgress(0);
@@ -278,6 +432,29 @@ export default function Preview() {
         <TrimBar mediaRef={activeMediaRef} />
       )}
 
+      {/* Mosh start timeline — video only, when datamosh OR datamosh-transition is enabled */}
+      {media && mediaType === 'video' && (hasMosh || hasMoshTrans) && (
+        <MoshStartBar mediaRef={videoRef} />
+      )}
+
+      {/* Clip B indicator + hidden file input — only relevant when the
+          datamosh-transition op is enabled. Lets the Header's "Clip B"
+          button target this input via the ref it stores on the store. */}
+      {hasMoshTrans && (
+        <>
+          <div className="clipb-hint">
+            <span style={{ color:'var(--dim)' }}>Clip B:</span>{' '}
+            <b style={{ color:'var(--fg)' }}>
+              {mediaB?.name || '(not loaded — click “Clip B (destination)” in the header)'}
+            </b>
+            {mediaB && <span style={{ color:'var(--dim)' }}> · {(mediaB.file.size/1024/1024).toFixed(1)} MB</span>}
+          </div>
+          <input ref={fileBRef} type="file" accept="video/*"
+            style={{display:'none'}}
+            onChange={e => { const f = e.target.files?.[0]; if (f) store.loadMediaB(f); e.target.value=''; }} />
+        </>
+      )}
+
       {/* Video copy-command CTA */}
       {media && mediaType === 'video' && (
         <div className="vid-cta">
@@ -340,6 +517,18 @@ export default function Preview() {
             <button className="pb render" onClick={renderAudio} disabled={isProcessing}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {isProcessing ? 'Processing…' : 'Render in Browser'}
+            </button>
+          )}
+          {mediaType === 'video' && operations.datamosh?.enabled && (
+            <button className="pb render" onClick={renderDatamosh} disabled={isProcessing}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              {isProcessing ? 'Datamoshing…' : 'Run Datamosh on Server'}
+            </button>
+          )}
+          {mediaType === 'video' && operations.datamoshTransition?.enabled && (
+            <button className="pb render" onClick={renderDatamoshTransition} disabled={isProcessing}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              {isProcessing ? 'Building transition…' : 'Run A→B Datamosh on Server'}
             </button>
           )}
           {mediaType === 'image' && (
